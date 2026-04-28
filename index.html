@@ -282,7 +282,7 @@ function render() {
       ${p.listing_date ? `<div class="popup-row"><b>Listed:</b> ${p.listing_date}</div>` : ''}
       ${p.contact ? `<div class="popup-row"><b>Contact:</b> ${p.contact}</div>` : ''}
       ${p.source  ? `<div class="popup-row"><b>Source:</b> ${p.source}</div>` : ''}
-      ${p.listing_url ? `<a class="popup-link" href="${p.listing_url}" target="_blank">View listing →</a>` : ''}
+      ${p.listing_url ? `<a class="popup-link" href="${p.listing_url.startsWith('http') ? p.listing_url : 'https://' + p.listing_url}" target="_blank">View listing →</a>` : ''}
       ${p.description ? `<div class="popup-desc">${p.description}</div>` : ''}
     `);
     m.on('click', () => { activeId = p.id; highlightList(p.id); });
@@ -314,7 +314,7 @@ function render() {
         ${priceBadge(p.price)}
         ${!hasCoords ? '<span class="badge" style="color:#664444">no coords</span>' : ''}
       </div>
-      ${p.listing_url ? `<a class="prop-link" href="${p.listing_url}" target="_blank">View listing →</a>` : ''}
+      ${p.listing_url ? `<a class="prop-link" href="${p.listing_url.startsWith('http') ? p.listing_url : 'https://' + p.listing_url}" target="_blank">View listing →</a>` : ''}
     </div>`;
   }).join('');
 }
