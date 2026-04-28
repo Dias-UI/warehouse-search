@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Warehouse Property Map — Phnom Penh</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0f0f11; color: #e8e8ea; }
+  #app { display: flex; height: 100vh; }
+  #sidebar { width: 340px; min-width: 280px; display: flex; flex-direction: column; background: #16161a; border-right: 1px solid #2a2a30; overflow: hidden; flex-shrink: 0; }
+  #map { flex: 1; }
+  #sidebar-header { padding: 14px 16px 10px; border-bottom: 1px solid #2a2a30; }
+  #sidebar-header h1 { font-size: 14px; font-weight: 600; letter-spacing: .02em; color: #fff; }
+  #sidebar-header p { font-size: 11px; color: #666; margin-top: 2px; }
+  #load-status { padding: 7px 16px; font-size: 11px; color: #555; border-bottom: 1px solid #2a2a30; min-height: 30px; display: flex; align-items: center; gap: 6px; }
+  .spinner { width: 10px; height: 10px; border: 1.5px solid #333; border-top-color: #6b7bff; border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #controls { padding: 10px 16px; border-bottom: 1px solid #2a2a30; display: flex; flex-direction: column; gap: 8px; }
+  label { font-size: 11px; color: #888; display: block; margin-bottom: 3px; }
+  select, input[type=text], input[type=number] { width: 100%; padding: 5px 8px; font-size: 12px; background: #1e1e24; border: 1px solid #2a2a30; border-radius: 5px; color: #e8e8ea; }
+  select:focus, input:focus { outline: none; border-color: #6b7bff; }
+  .ctrl-row { display: flex; gap: 8px; }
+  .ctrl-row > div { flex: 1; }
+  #color-legend { padding: 8px 16px; border-bottom: 1px solid #2a2a30; }
+  #color-legend label { margin-bottom: 4px; }
+  .legend-bar { height: 8px; border-radius: 4px; background: linear-gradient(to right, #22c55e, #eab308, #ef4444); margin-bottom: 3px; }
+  .legend-labels { display: flex; justify-content: space-between; font-size: 10px; color: #555; }
+  #list-header { padding: 8px 16px 6px; border-bottom: 1px solid #2a2a30; display: flex; justify-content: space-between; align-items: center; }
+  #list-header span { font-size: 11px; color: #666; }
+  #sort-select { font-size: 11px; padding: 3px 6px; background: #1e1e24; border: 1px solid #2a2a30; border-radius: 4px; color: #aaa; width: auto; }
+  #prop-list { flex: 1; overflow-y: auto; }
+  #prop-list::-webkit-scrollbar { width: 4px; }
+  #prop-list::-webkit-scrollbar-thumb { background: #2a2a30; border-radius: 2px; }
+  .prop-item { padding: 10px 16px; border-bottom: 1px solid #1e1e24; cursor: pointer; transition: background .1s; }
+  .prop-item:hover, .prop-item.active { background: #1e1e28; }
+  .prop-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+  .prop-id { font-size: 10px; color: #444; flex-shrink: 0; }
+  .prop-price { font-size: 13px; font-weight: 600; color: #fff; }
+  .prop-addr { font-size: 11px; color: #777; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .prop-meta { margin-top: 5px; display: flex; gap: 5px; flex-wrap: wrap; }
+  .badge { font-size: 10px; padding: 2px 6px; border-radius: 3px; background: #25252d; color: #888; }
+  .badge.green { background: #1a2e1a; color: #6fcf6f; }
+  .badge.red { background: #2e1a1a; color: #cf6f6f; }
+  .badge.yellow { background: #2e2a1a; color: #cfb86f; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 3px; }
+  .prop-link { font-size: 10px; color: #6b7bff; text-decoration: none; margin-top: 4px; display: inline-block; }
+  .prop-link:hover { text-decoration: underline; }
+  .no-data { text-align: center; padding: 40px 20px; color: #444; font-size: 13px; line-height: 1.8; }
+  .leaflet-popup-content-wrapper { background: #1e1e28; border: 1px solid #2a2a30; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,.5); color: #e8e8ea; }
+  .leaflet-popup-tip { background: #1e1e28; }
+  .leaflet-popup-content { margin: 12px 14px; min-width: 210px; }
+  .popup-price { font-size: 16px; font-weight: 700; color: #fff; }
+  .popup-addr { font-size: 12px; color: #888; margin: 3px 0 8px; }
+  .popup-row { font-size: 11px; color: #aaa; margin-bottom: 3px; }
+  .popup-row b { color: #ddd; }
+  .popup-link { display: inline-block; margin-top: 8px; font-size: 11px; color: #6b7bff; text-decoration: none; }
+  .popup-desc { font-size: 11px; color: #777; margin-top: 6px; border-top: 1px solid #2a2a30; padding-top: 6px; line-height: 1.5; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <h1>🏭 Warehouse Property Map</h1>
+      <p>Phnom Penh area search</p>
+    </div>
+
+    <div id="load-status"><span class="spinner"></span> Loading data.xlsx…</div>
+
+    <div id="controls">
+      <div>
+        <label>Color map by</label>
+        <select id="color-mode" onchange="render()">
+          <option value="price_per_sqm">Price per sqm</option>
+          <option value="price">Total price</option>
+          <option value="lot_size">Lot size</option>
+        </select>
+      </div>
+      <div class="ctrl-row">
+        <div>
+          <label>Max price ($)</label>
+          <input type="number" id="f-price" value="200000" oninput="render()">
+        </div>
+        <div>
+          <label>Min lot (sqm)</label>
+          <input type="number" id="f-size" value="200" oninput="render()">
+        </div>
+      </div>
+      <div>
+        <label>Search address</label>
+        <input type="text" id="f-addr" placeholder="e.g. dangkao, prey sar…" oninput="render()">
+      </div>
+    </div>
+
+    <div id="color-legend">
+      <label>Color scale (low → high)</label>
+      <div class="legend-bar"></div>
+      <div class="legend-labels"><span id="leg-lo">—</span><span id="leg-hi">—</span></div>
+    </div>
+
+    <div id="list-header">
+      <span id="count-label">—</span>
+      <select id="sort-select" onchange="render()">
+        <option value="price">price ↑</option>
+        <option value="price_desc">price ↓</option>
+        <option value="price_per_sqm">$/sqm ↑</option>
+        <option value="lot_size_desc">size ↓</option>
+      </select>
+    </div>
+
+    <div id="prop-list"><div class="no-data">Loading…</div></div>
+  </div>
+  <div id="map"></div>
+</div>
+
+<script>
+const map = L.map('map').setView([11.55, 104.92], 11);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '© OpenStreetMap © CARTO', maxZoom: 19
+}).addTo(map);
+
+let allData = [], markers = [], activeId = null;
+
+function parseXlsx(arrayBuffer) {
+  const wb = XLSX.read(arrayBuffer, { type: 'array' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+  if (!rows.length) throw new Error('No rows found in spreadsheet');
+
+  const keys = Object.keys(rows[0]);
+  const col = (...names) => keys.find(k => names.some(n => k.trim().toLowerCase() === n.toLowerCase())) || null;
+
+  const kLat  = col('lat','latitude');
+  const kLon  = col('lon','lng','longitude');
+  const kAddr = col('address','addr','location');
+  const kPric = col('price');
+  const kSize = col('lot_size','lotsize','lot size','size','sqm','area');
+  const kPpm  = col('price_per_sqm','price/sqm','ppm');
+  const kDesc = col('description','desc','notes');
+  const kUrl  = col('listing_url','url','link');
+  const kCont = col('contact');
+  const kSrc  = col('source');
+  const kDate = col('listing_date','date','listed');
+
+  return rows.map((r, i) => {
+    const lat  = parseFloat(r[kLat])  || 0;
+    const lon  = parseFloat(r[kLon])  || 0;
+    const price    = parseFloat(r[kPric]) || 0;
+    const lot_size = parseFloat(r[kSize]) || 0;
+    let ppm = parseFloat(r[kPpm]) || 0;
+    if (!ppm && price && lot_size) ppm = price / lot_size;
+    return {
+      id: String(r.id || r.ID || i + 1),
+      lat: isNaN(lat) ? 0 : lat,
+      lon: isNaN(lon) ? 0 : lon,
+      address:      kAddr ? String(r[kAddr] || '') : '',
+      price,
+      lot_size,
+      price_per_sqm: ppm,
+      description:  kDesc ? String(r[kDesc] || '') : '',
+      listing_url:  kUrl  ? String(r[kUrl]  || '') : '',
+      contact:      kCont ? String(r[kCont] || '') : '',
+      source:       kSrc  ? String(r[kSrc]  || '') : '',
+      listing_date: kDate ? String(r[kDate] || '') : '',
+    };
+  });
+}
+
+async function autoLoad() {
+  try {
+    const resp = await fetch('data.xlsx');
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const buf = await resp.arrayBuffer();
+    allData = parseXlsx(buf);
+    const withCoords = allData.filter(p => p.lat && p.lon).length;
+    document.getElementById('load-status').textContent =
+      `✓ ${allData.length} listings — ${withCoords} mapped`;
+    render();
+  } catch(err) {
+    document.getElementById('load-status').innerHTML =
+      `<span style="color:#884444">Could not load data.xlsx: ${err.message}</span>`;
+    document.getElementById('prop-list').innerHTML =
+      '<div class="no-data">Place data.xlsx in the same folder as index.html</div>';
+  }
+}
+
+function getFiltered() {
+  const maxPrice = parseFloat(document.getElementById('f-price').value) || Infinity;
+  const minSize  = parseFloat(document.getElementById('f-size').value)  || 0;
+  const addrQ    = document.getElementById('f-addr').value.toLowerCase().trim();
+  const sort     = document.getElementById('sort-select').value;
+
+  let data = allData.filter(p =>
+    (!p.price || p.price <= maxPrice) &&
+    (!p.lot_size || p.lot_size >= minSize) &&
+    (!addrQ || p.address.toLowerCase().includes(addrQ))
+  );
+  data.sort((a,b) => {
+    if (sort === 'price')         return a.price - b.price;
+    if (sort === 'price_desc')    return b.price - a.price;
+    if (sort === 'price_per_sqm') return a.price_per_sqm - b.price_per_sqm;
+    if (sort === 'lot_size_desc') return b.lot_size - a.lot_size;
+    return 0;
+  });
+  return data;
+}
+
+function colorScale(val, lo, hi) {
+  if (!hi || hi === lo) return '#6b7bff';
+  const t = Math.max(0, Math.min(1, (val - lo) / (hi - lo)));
+  const r = t < 0.5 ? Math.round(t * 2 * 235) : 235;
+  const g = t < 0.5 ? 200 : Math.round((1 - (t - 0.5) * 2) * 200);
+  return `rgb(${r},${g},60)`;
+}
+
+const fmt$  = p => p ? '$' + Math.round(p).toLocaleString() : '—';
+const fmtM2 = s => s ? Math.round(s) + ' m²' : '—';
+const fmtPm = v => v ? '$' + Math.round(v) + '/m²' : '—';
+
+function priceBadge(p) {
+  if (!p) return '';
+  if (p < 100000)  return `<span class="badge green">under $100k</span>`;
+  if (p <= 150000) return `<span class="badge yellow">$100–150k</span>`;
+  if (p <= 200000) return `<span class="badge yellow">$150–200k</span>`;
+  return `<span class="badge red">over $200k</span>`;
+}
+
+function render() {
+  const data = getFiltered();
+  const mode = document.getElementById('color-mode').value;
+
+  markers.forEach(m => map.removeLayer(m));
+  markers = [];
+
+  const vals = data.map(p => p[mode]).filter(v => v > 0);
+  const lo = vals.length ? Math.min(...vals) : 0;
+  const hi = vals.length ? Math.max(...vals) : 0;
+  const fmtLeg = v => mode === 'price' ? fmt$(v) : mode === 'lot_size' ? fmtM2(v) : fmtPm(v);
+  document.getElementById('leg-lo').textContent = fmtLeg(lo);
+  document.getElementById('leg-hi').textContent = fmtLeg(hi);
+  document.getElementById('count-label').textContent = `${data.length} properties`;
+
+  data.forEach(p => {
+    if (!p.lat || !p.lon) return;
+    const col = colorScale(p[mode], lo, hi);
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="width:14px;height:14px;border-radius:50%;background:${col};border:2px solid rgba(255,255,255,.35);box-shadow:0 0 7px ${col}99;cursor:pointer;"></div>`,
+      iconSize: [14,14], iconAnchor: [7,7]
+    });
+    const m = L.marker([p.lat, p.lon], { icon }).addTo(map);
+    m.bindPopup(`
+      <div class="popup-price">${fmt$(p.price)}</div>
+      <div class="popup-addr">${p.address}</div>
+      <div class="popup-row"><b>Lot:</b> ${fmtM2(p.lot_size)} &nbsp; <b>$/m²:</b> ${fmtPm(p.price_per_sqm)}</div>
+      ${p.listing_date ? `<div class="popup-row"><b>Listed:</b> ${p.listing_date}</div>` : ''}
+      ${p.contact ? `<div class="popup-row"><b>Contact:</b> ${p.contact}</div>` : ''}
+      ${p.source  ? `<div class="popup-row"><b>Source:</b> ${p.source}</div>` : ''}
+      ${p.listing_url ? `<a class="popup-link" href="${p.listing_url}" target="_blank">View listing →</a>` : ''}
+      ${p.description ? `<div class="popup-desc">${p.description}</div>` : ''}
+    `);
+    m.on('click', () => { activeId = p.id; highlightList(p.id); });
+    markers.push(m);
+  });
+
+  const listEl = document.getElementById('prop-list');
+  if (!data.length) {
+    listEl.innerHTML = '<div class="no-data">No properties match filters</div>';
+    return;
+  }
+  listEl.innerHTML = data.map(p => {
+    const col = colorScale(p[mode], lo, hi);
+    const hasCoords = p.lat && p.lon;
+    return `<div class="prop-item${p.id === activeId ? ' active' : ''}" id="item-${p.id}" onclick="focusProp('${p.id}',${p.lat},${p.lon})">
+      <div class="prop-top">
+        <div style="display:flex;gap:8px;align-items:flex-start;min-width:0;">
+          <div class="dot" style="background:${col};opacity:${hasCoords ? 1 : .25}"></div>
+          <div style="min-width:0;">
+            <div class="prop-price">${fmt$(p.price)}</div>
+            <div class="prop-addr" title="${p.address}">${p.address || '—'}</div>
+          </div>
+        </div>
+        <div class="prop-id">#${p.id}</div>
+      </div>
+      <div class="prop-meta">
+        ${p.lot_size ? `<span class="badge">${fmtM2(p.lot_size)}</span>` : ''}
+        ${p.price_per_sqm ? `<span class="badge">${fmtPm(p.price_per_sqm)}</span>` : ''}
+        ${priceBadge(p.price)}
+        ${!hasCoords ? '<span class="badge" style="color:#664444">no coords</span>' : ''}
+      </div>
+      ${p.listing_url ? `<a class="prop-link" href="${p.listing_url}" target="_blank">View listing →</a>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function focusProp(id, lat, lon) {
+  activeId = id;
+  highlightList(id);
+  if (lat && lon) {
+    map.setView([lat, lon], 15);
+    markers.forEach(m => {
+      if (Math.abs(m.getLatLng().lat - lat) < 0.0001 && Math.abs(m.getLatLng().lng - lon) < 0.0001)
+        m.openPopup();
+    });
+  }
+}
+
+function highlightList(id) {
+  document.querySelectorAll('.prop-item').forEach(el => el.classList.remove('active'));
+  const el = document.getElementById('item-' + id);
+  if (el) { el.classList.add('active'); el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+}
+
+autoLoad();
+</script>
+</body>
+</html>
